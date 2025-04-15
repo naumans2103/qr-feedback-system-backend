@@ -124,58 +124,6 @@ router.post('/login', async (req, res) => {
     }
 });
 
-// Get advisor's QR code
-router.get('/:advisorId/qrcode', authMiddleware, advisorMiddleware, async (req, res) => {
-    try {
-        const { advisorId } = req.params;
-
-        if (!mongoose.Types.ObjectId.isValid(advisorId)) {
-            return res.status(400).json({ message: 'Invalid Advisor ID format' });
-        }
-
-        const advisor = await Advisor.findById(advisorId);
-        if (!advisor) return res.status(404).json({ message: 'Advisor not found' });
-
-        const qrCodePath = path.join(QR_CODE_DIR, `${advisorId}.png`);
-        if (!fs.existsSync(qrCodePath)) {
-            advisor.qrCode = await generateQRCode(advisor._id);
-            await advisor.save();
-        }
-
-        res.status(200).json({ qrCodeURL: advisor.qrCode });
-
-    } catch (error) {
-        console.error('Error fetching QR Code:', error);
-        res.status(500).json({ message: 'Error fetching QR Code', error });
-    }
-});
-
-// Regenerate QR
-router.post('/:advisorId/regenerate-qrcode', authMiddleware, advisorMiddleware, async (req, res) => {
-    try {
-        const { advisorId } = req.params;
-
-        if (!mongoose.Types.ObjectId.isValid(advisorId)) {
-            return res.status(400).json({ message: 'Invalid Advisor ID format' });
-        }
-
-        const advisor = await Advisor.findById(advisorId);
-        if (!advisor) return res.status(404).json({ message: 'Advisor not found' });
-
-        advisor.qrCode = await generateQRCode(advisor._id);
-        await advisor.save();
-
-        res.status(200).json({ qrCodeURL: advisor.qrCode });
-
-    } catch (error) {
-        console.error("Error regenerating QR Code:", error);
-        res.status(500).json({ message: 'Error regenerating QR Code', error });
-    }
-});
-
-// Serve static QR codes
-router.use('/qrcodes', express.static(QR_CODE_DIR));
-
 // Get performance data for one advisor
 router.get('/performance/:advisorId', authMiddleware, advisorMiddleware, async (req, res) => {
     try {
@@ -233,6 +181,7 @@ router.get('/performance', authMiddleware, async (req, res) => {
 });
 
 // ✅ NEW: Fetch basic advisor info (name, email, role)
+// MUST BE ABOVE :advisorId/qrcode
 router.get('/:advisorId', authMiddleware, advisorMiddleware, async (req, res) => {
     try {
         const { advisorId } = req.params;
@@ -252,5 +201,57 @@ router.get('/:advisorId', authMiddleware, advisorMiddleware, async (req, res) =>
         res.status(500).json({ message: 'Server error fetching advisor info' });
     }
 });
+
+// Get advisor's QR code
+router.get('/:advisorId/qrcode', authMiddleware, advisorMiddleware, async (req, res) => {
+    try {
+        const { advisorId } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(advisorId)) {
+            return res.status(400).json({ message: 'Invalid Advisor ID format' });
+        }
+
+        const advisor = await Advisor.findById(advisorId);
+        if (!advisor) return res.status(404).json({ message: 'Advisor not found' });
+
+        const qrCodePath = path.join(QR_CODE_DIR, `${advisorId}.png`);
+        if (!fs.existsSync(qrCodePath)) {
+            advisor.qrCode = await generateQRCode(advisor._id);
+            await advisor.save();
+        }
+
+        res.status(200).json({ qrCodeURL: advisor.qrCode });
+
+    } catch (error) {
+        console.error('Error fetching QR Code:', error);
+        res.status(500).json({ message: 'Error fetching QR Code', error });
+    }
+});
+
+// Regenerate QR
+router.post('/:advisorId/regenerate-qrcode', authMiddleware, advisorMiddleware, async (req, res) => {
+    try {
+        const { advisorId } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(advisorId)) {
+            return res.status(400).json({ message: 'Invalid Advisor ID format' });
+        }
+
+        const advisor = await Advisor.findById(advisorId);
+        if (!advisor) return res.status(404).json({ message: 'Advisor not found' });
+
+        advisor.qrCode = await generateQRCode(advisor._id);
+        await advisor.save();
+
+        res.status(200).json({ qrCodeURL: advisor.qrCode });
+
+    } catch (error) {
+        console.error("Error regenerating QR Code:", error);
+        res.status(500).json({ message: 'Error regenerating QR Code', error });
+    }
+});
+
+// Serve static QR codes
+router.use('/qrcodes', express.static(QR_CODE_DIR));
 
 module.exports = router;
