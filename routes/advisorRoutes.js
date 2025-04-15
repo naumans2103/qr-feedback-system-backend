@@ -48,7 +48,7 @@ const generateQRCode = async (advisorId) => {
     }
 };
 
-// ✅ Register new advisor or manager
+// Register
 router.post('/register', async (req, res) => {
     const { name, email, password, role } = req.body;
 
@@ -59,7 +59,6 @@ router.post('/register', async (req, res) => {
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
-
         const newAdvisor = new Advisor({
             name,
             email,
@@ -87,7 +86,7 @@ router.post('/register', async (req, res) => {
     }
 });
 
-// ✅ Login
+// Login
 router.post('/login', async (req, res) => {
     const { email, password } = req.body;
 
@@ -122,28 +121,7 @@ router.post('/login', async (req, res) => {
     }
 });
 
-// ✅ NEW — Fetch advisor info without route conflict
-router.get('/details/:advisorId', authMiddleware, advisorMiddleware, async (req, res) => {
-    try {
-        const { advisorId } = req.params;
-
-        if (!mongoose.Types.ObjectId.isValid(advisorId)) {
-            return res.status(400).json({ message: 'Invalid Advisor ID format' });
-        }
-
-        const advisor = await Advisor.findById(advisorId).select('name email role');
-        if (!advisor) {
-            return res.status(404).json({ message: 'Advisor not found' });
-        }
-
-        res.status(200).json(advisor);
-    } catch (error) {
-        console.error('Error fetching advisor info:', error);
-        res.status(500).json({ message: 'Server error fetching advisor info' });
-    }
-});
-
-// ✅ Performance routes
+// Get performance for one advisor
 router.get('/performance/:advisorId', authMiddleware, advisorMiddleware, async (req, res) => {
     try {
         const { advisorId } = req.params;
@@ -173,6 +151,7 @@ router.get('/performance/:advisorId', authMiddleware, advisorMiddleware, async (
     }
 });
 
+// Get performance for all advisors
 router.get('/performance', authMiddleware, async (req, res) => {
     try {
         const advisors = await Advisor.find();
@@ -198,7 +177,7 @@ router.get('/performance', authMiddleware, async (req, res) => {
     }
 });
 
-// ✅ QR Code routes
+// Get QR code
 router.get('/:advisorId/qrcode', authMiddleware, advisorMiddleware, async (req, res) => {
     try {
         const { advisorId } = req.params;
@@ -224,6 +203,7 @@ router.get('/:advisorId/qrcode', authMiddleware, advisorMiddleware, async (req, 
     }
 });
 
+// Regenerate QR
 router.post('/:advisorId/regenerate-qrcode', authMiddleware, advisorMiddleware, async (req, res) => {
     try {
         const { advisorId } = req.params;
@@ -248,5 +228,26 @@ router.post('/:advisorId/regenerate-qrcode', authMiddleware, advisorMiddleware, 
 
 // Serve static QR codes
 router.use('/qrcodes', express.static(QR_CODE_DIR));
+
+// ✅ MUST BE LAST: Get advisor info (name, email, role)
+router.get('/:advisorId', authMiddleware, advisorMiddleware, async (req, res) => {
+    try {
+        const { advisorId } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(advisorId)) {
+            return res.status(400).json({ message: 'Invalid Advisor ID format' });
+        }
+
+        const advisor = await Advisor.findById(advisorId).select('name email role');
+        if (!advisor) {
+            return res.status(404).json({ message: 'Advisor not found' });
+        }
+
+        res.status(200).json(advisor);
+    } catch (error) {
+        console.error('Error fetching advisor info:', error);
+        res.status(500).json({ message: 'Server error fetching advisor info' });
+    }
+});
 
 module.exports = router;
