@@ -33,19 +33,19 @@ if (!fs.existsSync(QR_CODE_DIR)) {
     console.log('Created directory for storing QR codes.');
 }
 
-// Function to Generate QR Code with Updated IP
+// Function to Generate QR Code with Render URL
 const generateQRCode = async (advisorId) => {
     try {
         const qrCodePath = path.join(QR_CODE_DIR, `${advisorId}.png`);
-        const qrCodeURL = `http://${LOCAL_IP}:5000/qrcodes/${advisorId}.png`;
+        const renderBackendURL = "https://qr-feedback-system-backend-czm2.onrender.com";
+        const qrCodeURL = `${renderBackendURL}/qrcodes/${advisorId}.png`;
 
-        // Always regenerate QR Code to ensure the latest IP is used
-        await QRCode.toFile(qrCodePath, `http://${LOCAL_IP}:5000/feedback/${advisorId}`);
-        console.log(`Generated new QR Code for ${advisorId}: ${qrCodeURL}`);
+        await QRCode.toFile(qrCodePath, `${renderBackendURL}/feedback/${advisorId}`);
+        console.log(`✅ Generated new QR Code for ${advisorId}: ${qrCodeURL}`);
 
         return qrCodeURL;
     } catch (error) {
-        console.error("Error generating QR Code:", error);
+        console.error("❌ Error generating QR Code:", error);
         return null;
     }
 };
@@ -72,7 +72,6 @@ router.post('/register', async (req, res) => {
 
         await newAdvisor.save();
 
-        // Generate and Save QR Code Only for Advisors
         if (newAdvisor.role === "advisor") {
             newAdvisor.qrCode = await generateQRCode(newAdvisor._id);
             await newAdvisor.save();
@@ -100,12 +99,9 @@ router.post('/login', async (req, res) => {
         const advisor = await Advisor.findOne({ email });
         if (!advisor) return res.status(400).json({ message: 'Invalid credentials' });
 
-        console.log("🔍 Advisor Found:", advisor);
-
         const isMatch = await bcrypt.compare(password, advisor.password);
         if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
-        // Ensure QR Code Exists for Advisors
         const qrCodePath = path.join(QR_CODE_DIR, `${advisor._id}.png`);
         if (advisor.role === "advisor" && (!advisor.qrCode || !fs.existsSync(qrCodePath))) {
             advisor.qrCode = await generateQRCode(advisor._id);
@@ -117,9 +113,6 @@ router.post('/login', async (req, res) => {
             process.env.JWT_SECRET,
             { expiresIn: '1h' }
         );
-
-        console.log("Token Generated:", token);
-        console.log("Role Sent:", advisor.role);
 
         res.status(200).json({
             token,
@@ -145,7 +138,6 @@ router.get('/:advisorId/qrcode', authMiddleware, advisorMiddleware, async (req, 
         const advisor = await Advisor.findById(advisorId);
         if (!advisor) return res.status(404).json({ message: 'Advisor not found' });
 
-        // Ensure QR Code Exists
         const qrCodePath = path.join(QR_CODE_DIR, `${advisorId}.png`);
         if (!fs.existsSync(qrCodePath)) {
             advisor.qrCode = await generateQRCode(advisor._id);
@@ -172,7 +164,6 @@ router.post('/:advisorId/regenerate-qrcode', authMiddleware, advisorMiddleware, 
         const advisor = await Advisor.findById(advisorId);
         if (!advisor) return res.status(404).json({ message: 'Advisor not found' });
 
-        // Generate a New QR Code
         advisor.qrCode = await generateQRCode(advisor._id);
         await advisor.save();
 
@@ -187,7 +178,7 @@ router.post('/:advisorId/regenerate-qrcode', authMiddleware, advisorMiddleware, 
 // Serve QR Codes as Static Files
 router.use('/qrcodes', express.static(QR_CODE_DIR));
 
-// Fetch Individual Advisor Performance Data 
+// Fetch Individual Advisor Performance Data
 router.get('/performance/:advisorId', authMiddleware, advisorMiddleware, async (req, res) => {
     try {
         const { advisorId } = req.params;
@@ -201,7 +192,6 @@ router.get('/performance/:advisorId', authMiddleware, advisorMiddleware, async (
             return res.status(404).json({ message: 'Advisor not found' });
         }
 
-        // Ensure performanceData exists
         const feedback = advisor.performanceData || [];
 
         res.status(200).json({
@@ -223,16 +213,12 @@ router.get('/performance/:advisorId', authMiddleware, advisorMiddleware, async (
 // Fetch Performance Data for ALL Advisors (Manager Only)
 router.get('/performance', authMiddleware, async (req, res) => {
     try {
-        console.log("Fetching all advisors' performance data...");
-
-        // Fetch all advisors from the database
         const advisors = await Advisor.find();
 
         if (!advisors || advisors.length === 0) {
             return res.status(404).json({ message: 'No advisors found' });
         }
 
-        // Format Data for Manager Dashboard
         const advisorPerformance = advisors.map(advisor => ({
             id: advisor._id.toString(),
             name: advisor.name,
@@ -247,6 +233,27 @@ router.get('/performance', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error("Error retrieving performance data for manager dashboard:", error);
         res.status(500).json({ message: 'Error retrieving performance data', error: error.message });
+    }
+});
+
+// ✅ Fetch Advisor Info (Name, Email, Role) — NEW ROUTE
+router.get('/:advisorId', authMiddleware, advisorMiddleware, async (req, res) => {
+    try {
+        const { advisorId } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(advisorId)) {
+            return res.status(400).json({ message: 'Invalid Advisor ID format' });
+        }
+
+        const advisor = await Advisor.findById(advisorId).select('name email role');
+        if (!advisor) {
+            return res.status(404).json({ message: 'Advisor not found' });
+        }
+
+        res.status(200).json(advisor);
+    } catch (error) {
+        console.error('Error fetching advisor info:', error);
+        res.status(500).json({ message: 'Server error fetching advisor info' });
     }
 });
 
