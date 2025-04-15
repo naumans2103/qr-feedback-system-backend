@@ -11,7 +11,7 @@ const { authMiddleware, advisorMiddleware } = require('../middleware/authMiddlew
 
 const router = express.Router();
 
-// Function to Get Local IP Address Dynamically
+// Get Local IP
 function getLocalIP() {
     const interfaces = os.networkInterfaces();
     for (let iface of Object.values(interfaces)) {
@@ -27,13 +27,13 @@ function getLocalIP() {
 const LOCAL_IP = getLocalIP();
 const QR_CODE_DIR = path.join(__dirname, '../public/qrcodes');
 
-// Ensure QR Codes Directory Exists
+// Create QR folder if not exists
 if (!fs.existsSync(QR_CODE_DIR)) {
     fs.mkdirSync(QR_CODE_DIR, { recursive: true });
     console.log('Created directory for storing QR codes.');
 }
 
-// Function to Generate QR Code with Render URL
+// Generate QR Code
 const generateQRCode = async (advisorId) => {
     try {
         const qrCodePath = path.join(QR_CODE_DIR, `${advisorId}.png`);
@@ -50,7 +50,7 @@ const generateQRCode = async (advisorId) => {
     }
 };
 
-// Register New Advisor
+// Register advisor or manager
 router.post('/register', async (req, res) => {
     const { name, email, password, role } = req.body;
 
@@ -77,8 +77,6 @@ router.post('/register', async (req, res) => {
             await newAdvisor.save();
         }
 
-        console.log("Manager/Advisor Registered:", { name, email, role });
-
         res.status(201).json({
             message: 'User registered successfully',
             advisorId: newAdvisor._id,
@@ -91,7 +89,7 @@ router.post('/register', async (req, res) => {
     }
 });
 
-// Advisor Login (Generate JWT)
+// Login
 router.post('/login', async (req, res) => {
     const { email, password } = req.body;
 
@@ -126,7 +124,7 @@ router.post('/login', async (req, res) => {
     }
 });
 
-// Fetch Advisor QR Code
+// Get advisor's QR code
 router.get('/:advisorId/qrcode', authMiddleware, advisorMiddleware, async (req, res) => {
     try {
         const { advisorId } = req.params;
@@ -152,7 +150,7 @@ router.get('/:advisorId/qrcode', authMiddleware, advisorMiddleware, async (req, 
     }
 });
 
-// Regenerate QR Code for an Advisor
+// Regenerate QR
 router.post('/:advisorId/regenerate-qrcode', authMiddleware, advisorMiddleware, async (req, res) => {
     try {
         const { advisorId } = req.params;
@@ -175,10 +173,10 @@ router.post('/:advisorId/regenerate-qrcode', authMiddleware, advisorMiddleware, 
     }
 });
 
-// Serve QR Codes as Static Files
+// Serve static QR codes
 router.use('/qrcodes', express.static(QR_CODE_DIR));
 
-// Fetch Individual Advisor Performance Data
+// Get performance data for one advisor
 router.get('/performance/:advisorId', authMiddleware, advisorMiddleware, async (req, res) => {
     try {
         const { advisorId } = req.params;
@@ -188,9 +186,7 @@ router.get('/performance/:advisorId', authMiddleware, advisorMiddleware, async (
         }
 
         const advisor = await Advisor.findById(advisorId);
-        if (!advisor) {
-            return res.status(404).json({ message: 'Advisor not found' });
-        }
+        if (!advisor) return res.status(404).json({ message: 'Advisor not found' });
 
         const feedback = advisor.performanceData || [];
 
@@ -210,7 +206,7 @@ router.get('/performance/:advisorId', authMiddleware, advisorMiddleware, async (
     }
 });
 
-// Fetch Performance Data for ALL Advisors (Manager Only)
+// Get performance data for all advisors
 router.get('/performance', authMiddleware, async (req, res) => {
     try {
         const advisors = await Advisor.find();
@@ -231,12 +227,12 @@ router.get('/performance', authMiddleware, async (req, res) => {
         res.status(200).json(advisorPerformance);
 
     } catch (error) {
-        console.error("Error retrieving performance data for manager dashboard:", error);
+        console.error("Error retrieving performance data:", error);
         res.status(500).json({ message: 'Error retrieving performance data', error: error.message });
     }
 });
 
-// ✅ Fetch Advisor Info (Name, Email, Role) — NEW ROUTE
+// ✅ NEW: Fetch basic advisor info (name, email, role)
 router.get('/:advisorId', authMiddleware, advisorMiddleware, async (req, res) => {
     try {
         const { advisorId } = req.params;
