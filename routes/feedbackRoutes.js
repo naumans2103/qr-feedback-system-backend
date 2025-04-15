@@ -5,102 +5,112 @@ const Advisor = require('../models/Advisor');
 
 const router = express.Router();
 
-// ✅ Middleware to parse form data correctly
 router.use(bodyParser.urlencoded({ extended: true }));
 router.use(bodyParser.json());
 
-// ✅ Serve the Feedback Form When Scanned
+// Serve the Feedback Form
 router.get('/:advisorId', async (req, res) => {
     try {
         const advisor = await Advisor.findById(req.params.advisorId);
-        if (!advisor) return res.status(404).send('❌ Advisor not found');
+        if (!advisor) return res.status(404).send('Advisor not found');
 
-        // ✅ Render a simple HTML form for feedback submission
         res.send(`
             <!DOCTYPE html>
             <html lang="en">
             <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Feedback Form</title>
+                <meta charset="UTF-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+                <title>Client Advisor Feedback</title>
                 <style>
-                    body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
-                    form { display: inline-block; text-align: left; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
-                    button { background-color: blue; color: white; padding: 10px; border: none; border-radius: 5px; cursor: pointer; }
+                    body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
+                    form { display: inline-block; text-align: left; padding: 20px; border: 1px solid #ccc; border-radius: 8px; }
+                    label { font-weight: bold; display: block; margin-top: 10px; }
+                    select, textarea { width: 100%; margin-top: 5px; padding: 6px; }
+                    button { margin-top: 20px; padding: 10px 20px; background-color: black; color: white; border: none; border-radius: 5px; cursor: pointer; }
                 </style>
             </head>
             <body>
                 <h2>Leave Feedback for ${advisor.name}</h2>
                 <form action="/api/feedback/submit/${advisor._id}" method="POST">
-                    <label for="rating">Rating (1-5):</label>
-                    <select name="rating" required>
-                        <option value="" disabled selected>Select a rating</option>
-                        <option value="1">1 - Poor</option>
-                        <option value="2">2 - Fair</option>
-                        <option value="3">3 - Good</option>
-                        <option value="4">4 - Very Good</option>
-                        <option value="5">5 - Excellent</option>
-                    </select><br><br>
 
-                    <label for="comment">Comments (Optional):</label><br>
-                    <textarea name="comment" rows="4" cols="30"></textarea><br><br>
+                    <label>1. How satisfied were you with the level of personal attention you received?</label>
+                    <select name="q1" required>
+                        <option value="">Select a rating</option>
+                        ${[1,2,3,4,5].map(n => `<option value="${n}">${n}</option>`).join('')}
+                    </select>
 
-                    <button type="submit">Submit</button>
+                    <label>2. How would you rate the Client Advisor’s professionalism and demeanor?</label>
+                    <select name="q2" required>
+                        <option value="">Select a rating</option>
+                        ${[1,2,3,4,5].map(n => `<option value="${n}">${n}</option>`).join('')}
+                    </select>
+
+                    <label>3. Did the Client Advisor demonstrate expert product knowledge and recommendations?</label>
+                    <select name="q3" required>
+                        <option value="">Select a rating</option>
+                        ${[1,2,3,4,5].map(n => `<option value="${n}">${n}</option>`).join('')}
+                    </select>
+
+                    <label>4. How well did the Client Advisor understand your needs and preferences?</label>
+                    <select name="q4" required>
+                        <option value="">Select a rating</option>
+                        ${[1,2,3,4,5].map(n => `<option value="${n}">${n}</option>`).join('')}
+                    </select>
+
+                    <label>5. Overall, how satisfied were you with your experience with the Client Advisor?</label>
+                    <select name="q5" required>
+                        <option value="">Select a rating</option>
+                        ${[1,2,3,4,5].map(n => `<option value="${n}">${n}</option>`).join('')}
+                    </select>
+
+                    <label>6. Please leave any additional comments, suggestions, or feedback for the Client Advisor (optional):</label>
+                    <textarea name="comment" rows="4"></textarea>
+
+                    <button type="submit">Submit Feedback</button>
                 </form>
             </body>
             </html>
         `);
     } catch (error) {
-        console.error("❌ Error loading feedback form:", error);
-        res.status(500).send('❌ Server Error');
+        console.error("Error loading feedback form:", error);
+        res.status(500).send('Server Error');
     }
 });
 
-// ✅ Handle Feedback Submission (POST Request)
+// Handle Feedback Submission
 router.post('/submit/:advisorId', async (req, res) => {
     try {
         const { advisorId } = req.params;
-        const { rating, comment } = req.body;
+        const { q1, q2, q3, q4, q5, comment } = req.body;
 
         if (!mongoose.Types.ObjectId.isValid(advisorId)) {
-            return res.status(400).json({ message: '❌ Invalid Advisor ID format' });
+            return res.status(400).json({ message: 'Invalid Advisor ID format' });
         }
 
         const advisor = await Advisor.findById(advisorId);
-        if (!advisor) {
-            return res.status(404).json({ message: '❌ Advisor not found' });
-        }
+        if (!advisor) return res.status(404).json({ message: 'Advisor not found' });
 
-        // ✅ Ensure rating is valid
-        const parsedRating = parseInt(rating, 10);
-        if (!parsedRating || parsedRating < 1 || parsedRating > 5) {
-            return res.status(400).json({ message: '❌ Rating is required and must be between 1 and 5' });
-        }
-
-        // ✅ Save Feedback Data
-        const newFeedback = {
+        const feedbackEntry = {
             date: new Date(),
-            rating: parsedRating, // ✅ Ensure rating is stored as a number
-            comments: comment || '', // ✅ Store comment if available
+            q1: parseInt(q1),
+            q2: parseInt(q2),
+            q3: parseInt(q3),
+            q4: parseInt(q4),
+            q5: parseInt(q5),
+            comment: comment || '',
         };
 
-        // ✅ Ensure feedback array exists before pushing
-        if (!Array.isArray(advisor.performanceData)) {
-            advisor.performanceData = [];
-        }
-
-        advisor.performanceData.push(newFeedback);
+        advisor.performanceData.push(feedbackEntry);
         await advisor.save();
 
-        console.log("✅ Feedback submitted successfully");
-
+        console.log(`✅ Feedback submitted for ${advisor.name}`);
         res.send(`
-            <h3>✅ Thank You for Your Feedback!</h3>
-            <p>Your response has been recorded successfully.</p>
+            <h3>Thank You!</h3>
+            <p>Your feedback has been successfully recorded.</p>
         `);
     } catch (error) {
-        console.error('❌ Feedback Submission Error:', error);
-        res.status(500).json({ message: '❌ Error submitting feedback', error });
+        console.error('Feedback Submission Error:', error);
+        res.status(500).json({ message: 'Error submitting feedback', error });
     }
 });
 
