@@ -11,19 +11,6 @@ const { authMiddleware, advisorMiddleware } = require('../middleware/authMiddlew
 
 const router = express.Router();
 
-// Get Local IP (for fallback/debug)
-function getLocalIP() {
-  const interfaces = os.networkInterfaces();
-  for (let iface of Object.values(interfaces)) {
-    for (let config of iface) {
-      if (config.family === 'IPv4' && !config.internal) {
-        return config.address;
-      }
-    }
-  }
-  return '127.0.0.1';
-}
-
 const QR_CODE_DIR = path.join(__dirname, '../public/qrcodes');
 
 // Ensure QR code directory exists
@@ -40,15 +27,14 @@ const generateQRCode = async (advisorId) => {
     const qrCodeURL = `${renderBackendURL}/qrcodes/${advisorId}.png`;
 
     await QRCode.toFile(qrCodePath, `${renderBackendURL}/feedback/${advisorId}`);
-    console.log(`✅ Generated QR for ${advisorId}: ${qrCodeURL}`);
     return qrCodeURL;
   } catch (error) {
-    console.error("❌ Error generating QR code:", error);
+    console.error("❌ QR Code Generation Error:", error);
     return null;
   }
 };
 
-// ✅ Register Advisor
+// ✅ Register
 router.post('/register', async (req, res) => {
   const { name, email, password, role } = req.body;
 
@@ -80,8 +66,8 @@ router.post('/register', async (req, res) => {
       role: newAdvisor.role
     });
   } catch (error) {
-    console.error('Error registering user:', error);
-    res.status(500).json({ message: 'Error registering user', error });
+    console.error('Registration Error:', error);
+    res.status(500).json({ message: 'Server error during registration', error });
   }
 });
 
@@ -96,7 +82,6 @@ router.post('/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, advisor.password);
     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
-    // Ensure QR code exists
     const qrCodePath = path.join(QR_CODE_DIR, `${advisor._id}.png`);
     if (advisor.role === "advisor" && (!advisor.qrCode || !fs.existsSync(qrCodePath))) {
       advisor.qrCode = await generateQRCode(advisor._id);
@@ -115,12 +100,12 @@ router.post('/login', async (req, res) => {
       role: advisor.role
     });
   } catch (error) {
-    console.error("Error logging in:", error);
-    res.status(500).json({ message: 'Error logging in', error });
+    console.error("Login Error:", error);
+    res.status(500).json({ message: 'Server error during login', error });
   }
 });
 
-// ✅ GET Advisor Info (used in FeedbackScreen)
+// ✅ MUST come before dynamic :id routes to avoid conflict
 router.get('/details/:advisorId', authMiddleware, advisorMiddleware, async (req, res) => {
   try {
     const { advisorId } = req.params;
@@ -136,7 +121,7 @@ router.get('/details/:advisorId', authMiddleware, advisorMiddleware, async (req,
 
     res.status(200).json(advisor);
   } catch (error) {
-    console.error('Error fetching advisor info:', error);
+    console.error('Fetch Advisor Info Error:', error);
     res.status(500).json({ message: 'Server error fetching advisor info' });
   }
 });
@@ -161,7 +146,7 @@ router.get('/:advisorId/qrcode', authMiddleware, advisorMiddleware, async (req, 
 
     res.status(200).json({ qrCodeURL: advisor.qrCode });
   } catch (error) {
-    console.error('Error fetching QR Code:', error);
+    console.error('QR Code Fetch Error:', error);
     res.status(500).json({ message: 'Error fetching QR Code', error });
   }
 });
@@ -183,7 +168,7 @@ router.post('/:advisorId/regenerate-qrcode', authMiddleware, advisorMiddleware, 
 
     res.status(200).json({ qrCodeURL: advisor.qrCode });
   } catch (error) {
-    console.error("Error regenerating QR Code:", error);
+    console.error("QR Code Regeneration Error:", error);
     res.status(500).json({ message: 'Error regenerating QR Code', error });
   }
 });
@@ -212,24 +197,20 @@ router.get('/performance/:advisorId', authMiddleware, advisorMiddleware, async (
       feedback: feedback,
     });
   } catch (error) {
-    console.error("Error retrieving performance data:", error);
+    console.error("Performance Error:", error);
     res.status(500).json({ message: 'Error retrieving performance data', error: error.message });
   }
 });
 
-// ✅ All Performance (Manager view)
+// ✅ All Advisors (Manager)
 router.get('/performance', authMiddleware, async (req, res) => {
   try {
     const advisors = await Advisor.find();
 
-    if (!advisors || advisors.length === 0) {
-      return res.status(404).json({ message: 'No advisors found' });
-    }
-
     const advisorPerformance = advisors.map(advisor => ({
       id: advisor._id.toString(),
       name: advisor.name,
-      totalFeedback: advisor.performanceData.length || 0,
+      totalFeedback: advisor.performanceData.length,
       averageRating: advisor.performanceData.length > 0
         ? (advisor.performanceData.reduce((sum, f) => sum + (f.rating || 0), 0) / advisor.performanceData.length).toFixed(1)
         : "No ratings yet",
@@ -237,12 +218,12 @@ router.get('/performance', authMiddleware, async (req, res) => {
 
     res.status(200).json(advisorPerformance);
   } catch (error) {
-    console.error("Error retrieving performance data:", error);
-    res.status(500).json({ message: 'Error retrieving performance data', error: error.message });
+    console.error("All Performance Error:", error);
+    res.status(500).json({ message: 'Error retrieving all performance data', error: error.message });
   }
 });
 
-// ✅ Serve QR Code Images
+// ✅ Serve QR Codes
 router.use('/qrcodes', express.static(QR_CODE_DIR));
 
 module.exports = router;
