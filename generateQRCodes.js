@@ -2,34 +2,14 @@ const mongoose = require('mongoose');
 const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 require('dotenv').config();
 
 const Advisor = require('./models/Advisor');
 
 // ----------------------------------------------
-// Get local IP for dynamic QR code generation
+// Setup Render URL and QR code directory
 // ----------------------------------------------
-function getLocalIP() {
-  const interfaces = os.networkInterfaces();
-
-  for (const iface of Object.values(interfaces)) {
-    for (const config of iface) {
-      if (config.family === 'IPv4' && !config.internal) {
-        return config.address;
-      }
-    }
-  }
-
-  return '127.0.0.1';
-}
-
-// ----------------------------------------------
-// Setup environment-dependent URLs and paths
-// ----------------------------------------------
-const LOCAL_IP = getLocalIP();
-const PORT = process.env.PORT || 5000;
-const BACKEND_URL = `https://qr-feedback-system-backend-1.onrender.com`;
+const BACKEND_URL = `https://qr-feedback-system-backend-1.onrender.com`; // Your Render backend URL
 const QR_CODE_DIR = path.join(__dirname, 'public/qrcodes');
 
 // Ensure QR code output directory exists
@@ -43,33 +23,42 @@ if (!fs.existsSync(QR_CODE_DIR)) {
 // ----------------------------------------------
 (async () => {
   try {
-    // Connect to MongoDB
-    await mongoose.connect(process.env.MONGO_URI);
-    console.log('Connected to MongoDB');
+    // Connect to MongoDB Atlas
+    await mongoose.connect(process.env.MONGO_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log('✅ Connected to MongoDB');
 
     // Fetch all advisors from the database
     const advisors = await Advisor.find();
 
     for (const advisor of advisors) {
       const advisorId = advisor._id.toString();
-      const feedbackURL = `${LOCAL_BACKEND_URL}/api/feedback/${advisorId}`;
-      const qrCodePath = path.join(QR_CODE_DIR, `${advisorId}.png`);
-      const qrCodeImageURL = `${LOCAL_BACKEND_URL}/qrcodes/${advisorId}.png`;
 
-      // Generate QR Code PNG file
+      // Create the URL the QR code should point to
+      const feedbackURL = `${BACKEND_URL}/api/feedback/${advisorId}`;
+
+      // Create the file path where the QR code image will be saved
+      const qrCodePath = path.join(QR_CODE_DIR, `${advisorId}.png`);
+
+      // Create the URL to be stored in advisor.qrCode field
+      const qrCodeImageURL = `/public/qrcodes/${advisorId}.png`; // Just the relative path
+
+      // Generate and save the QR Code PNG file
       await QRCode.toFile(qrCodePath, feedbackURL);
 
-      // Save QR Code URL to advisor in DB
+      // Update advisor with the new QR code path
       advisor.qrCode = qrCodeImageURL;
       await advisor.save();
 
-      console.log(`QR code updated for ${advisor.name}: ${qrCodeImageURL}`);
+      console.log(`🎯 QR code updated for ${advisor.name}: ${qrCodeImageURL}`);
     }
 
-    console.log('All QR codes regenerated successfully!');
+    console.log('🎉 All advisor QR codes regenerated successfully!');
     process.exit(0);
   } catch (error) {
-    console.error('Failed to generate QR codes:', error);
+    console.error('❌ Failed to generate QR codes:', error);
     process.exit(1);
   }
 })();
