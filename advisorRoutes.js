@@ -41,9 +41,14 @@ if (!fs.existsSync(QR_CODE_DIR)) {
 const generateQRCode = async (advisorId) => {
   try {
     const qrCodePath = path.join(QR_CODE_DIR, `${advisorId}.png`);
-    const feedbackURL = `${LOCAL_BACKEND_URL}/api/feedback/${advisorId}`;
+    
+    // Always use Render backend URL
+    const feedbackURL = `${BACKEND_URL}/api/feedback/${advisorId}`;
+    
     await QRCode.toFile(qrCodePath, feedbackURL);
-    return `${LOCAL_BACKEND_URL}/qrcodes/${advisorId}.png`;
+
+    // Only store relative QR code image path
+    return `/public/qrcodes/${advisorId}.png`;
   } catch (error) {
     console.error('QR Code Generation Error:', error);
     return null;
