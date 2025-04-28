@@ -29,7 +29,7 @@ function getLocalIP() {
 // ----------------------------------------------
 const LOCAL_IP = getLocalIP();
 const PORT = process.env.PORT || 5000;
-const LOCAL_BACKEND_URL = `http://${LOCAL_IP}:${PORT}`;
+const BACKEND_URL = `https://qr-feedback-system-backend-1.onrender.com`;
 const QR_CODE_DIR = path.join(__dirname, 'public/qrcodes');
 
 // Ensure QR code output directory exists
