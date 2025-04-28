@@ -55,7 +55,7 @@ if (!fs.existsSync(QR_CODE_DIR)) {
   console.log('Created QR code directory');
 }
 
-app.use('/qrcodes', express.static(QR_CODE_DIR, {
+app.use('/public/qrcodes', express.static(QR_CODE_DIR, {
   setHeaders: (res) => {
     res.set('Access-Control-Allow-Origin', '*');
     res.set('Cache-Control', 'public, max-age=31557600'); // 1 year cache
