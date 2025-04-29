@@ -1,35 +1,37 @@
+// w1947632 Nauman Shaikh //
 const jwt = require('jsonwebtoken');
 const Advisor = require('../models/Advisor');
 
-// Middleware: Authenticate any logged-in user (Advisor or Manager)
+// Middleware: Authenticates users (advisor or manager)
 const authMiddleware = async (req, res, next) => {
   try {
-    const token = req.header('Authorization');
-
-    if (!token) {
+    const authHeader = req.header('Authorization');
+    if (!authHeader) {
       return res.status(401).json({ message: 'Access Denied - No Token Provided' });
     }
 
-    // Strip "Bearer " prefix if present and verify token
-    const decoded = jwt.verify(token.replace('Bearer ', ''), process.env.JWT_SECRET);
+    // Clean the token (remove Bearer prefix if present)
+    const token = authHeader.replace('Bearer ', '');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
     req.user = decoded;
 
-    // Fetch advisor from DB
+    // Validate advisor in DB
     const advisor = await Advisor.findById(decoded.advisorId);
     if (!advisor) {
-      return res.status(401).json({ message: 'User not found' });
+      return res.status(401).json({ message: 'Access Denied - User Not Found' });
     }
 
-    // Attach user role to request object
+    // Assign role from DB to user object
     req.user.role = advisor.role;
     next();
-  } catch (err) {
-    console.error('Auth Middleware Error:', err.message);
+  } catch (error) {
+    console.error('Auth Middleware Error:', error.message);
     return res.status(401).json({ message: 'Invalid or Expired Token' });
   }
 };
 
-// Middleware: Allow only users with manager role
+// Middleware: Restrict access to manager-only routes
 const managerMiddleware = (req, res, next) => {
   if (req.user.role !== 'manager') {
     return res.status(403).json({ message: 'Access Denied - Managers Only' });
@@ -37,13 +39,15 @@ const managerMiddleware = (req, res, next) => {
   next();
 };
 
-// Middleware: Allow advisor to access only their own data (unless manager)
+// Middleware: Allow advisors to access only their own data (unless manager)
 const advisorMiddleware = (req, res, next) => {
   const isManager = req.user.role === 'manager';
   const isOwner = req.user.advisorId === req.params.advisorId;
 
   if (!isManager && !isOwner) {
-    return res.status(403).json({ message: 'Access Denied - You can only access your own data' });
+    return res.status(403).json({
+      message: 'Access Denied - You can only access your own data',
+    });
   }
 
   next();
