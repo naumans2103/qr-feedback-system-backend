@@ -1,3 +1,4 @@
+// w1947632 Nauman Shaikh //
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -12,9 +13,9 @@ const feedbackRoutes = require('./routes/feedbackRoutes');
 
 const app = express();
 
-// -----------------------------------
-// Utility: Get local IPv4 address
-// -----------------------------------
+// ----------------------------
+// Utility: Get Local IP Address
+// ----------------------------
 function getLocalIP() {
   const interfaces = os.networkInterfaces();
   for (const iface of Object.values(interfaces)) {
@@ -31,53 +32,53 @@ const LOCAL_IP = getLocalIP();
 const PORT = process.env.PORT || 5000;
 
 console.log(`Local IP Address: ${LOCAL_IP}`);
-console.log(`Backend running on: http://${LOCAL_IP}:${PORT}`);
+console.log(`Backend will run at: http://${LOCAL_IP}:${PORT}`);
 
-// -----------------------------------
-// Connect to MongoDB
-// -----------------------------------
+// ----------------------------
+// Database Connection
+// ----------------------------
 connectDB();
 
-// -----------------------------------
-// Middleware
-// -----------------------------------
+// ----------------------------
+// Middleware Setup
+// ----------------------------
 app.use(cors());
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// -----------------------------------
-// Serve static QR code images
-// -----------------------------------
+// ----------------------------
+// Static Files: QR Codes
+// ----------------------------
 const QR_CODE_DIR = path.join(__dirname, 'public/qrcodes');
 
 if (!fs.existsSync(QR_CODE_DIR)) {
   fs.mkdirSync(QR_CODE_DIR, { recursive: true });
-  console.log('Created QR code directory');
+  console.log('QR code directory created.');
 }
 
 app.use('/public/qrcodes', express.static(QR_CODE_DIR, {
   setHeaders: (res) => {
     res.set('Access-Control-Allow-Origin', '*');
-    res.set('Cache-Control', 'public, max-age=31557600'); // 1 year cache
-  }
+    res.set('Cache-Control', 'public, max-age=31557600'); // Cache static files for 1 year
+  },
 }));
 
-// -----------------------------------
-// Health check endpoint
-// -----------------------------------
+// ----------------------------
+// Health Check Endpoint
+// ----------------------------
 app.get('/', (req, res) => {
-  res.send(`API is running Successfully.`);
+  res.send('API is running successfully.');
 });
 
-// -----------------------------------
-// Routes
-// -----------------------------------
+// ----------------------------
+// API Routes
+// ----------------------------
 app.use('/api/advisors', advisorRoutes);
 app.use('/api/feedback', feedbackRoutes);
 
-// -----------------------------------
-// Start the server
-// -----------------------------------
+// ----------------------------
+// Start Server
+// ----------------------------
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server is live at http://${LOCAL_IP}:${PORT}`);
+  console.log(`Server live at: http://${LOCAL_IP}:${PORT}`);
 });
