@@ -1,3 +1,4 @@
+// w1947632 Nauman Shaikh //
 const express = require('express');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
@@ -12,9 +13,11 @@ const { authMiddleware, advisorMiddleware } = require('../middleware/authMiddlew
 
 const router = express.Router();
 
-// --- Helpers ---
+// -----------------
+// Utility Functions
+// -----------------
 
-// Get the machine's local IP
+// Get the server's local IP address
 const getLocalIP = () => {
   const interfaces = os.networkInterfaces();
   for (const iface of Object.values(interfaces)) {
@@ -30,40 +33,38 @@ const getLocalIP = () => {
 const LOCAL_IP = getLocalIP();
 const BACKEND_URL = `https://qr-feedback-system-backend-1.onrender.com`;
 
-// Ensure QR code directory exists
+// Ensure the QR code output directory exists
 const QR_CODE_DIR = path.join(__dirname, '../public/qrcodes');
 if (!fs.existsSync(QR_CODE_DIR)) {
   fs.mkdirSync(QR_CODE_DIR, { recursive: true });
-  console.log('Created QR code directory.');
+  console.log('✅ QR code directory created.');
 }
 
-// Generate and save QR code to local storage
+// Generate and save QR code image
 const generateQRCode = async (advisorId) => {
   try {
-    const qrCodePath = path.join(QR_CODE_DIR, `${advisorId}.png`);
-    
-    // Always use Render backend URL
-    const feedbackURL = `${BACKEND_URL}/api/feedback/${advisorId}`;
-    
-    await QRCode.toFile(qrCodePath, feedbackURL);
+    const qrPath = path.join(QR_CODE_DIR, `${advisorId}.png`);
+    const qrURL = `${BACKEND_URL}/api/feedback/${advisorId}`;
 
-    // Only store relative QR code image path
+    await QRCode.toFile(qrPath, qrURL);
     return `/public/qrcodes/${advisorId}.png`;
   } catch (error) {
-    console.error('QR Code Generation Error:', error);
+    console.error('❌ QR Code Generation Error:', error);
     return null;
   }
 };
 
-// --- Routes ---
+// --------------------
+// Authentication Routes
+// --------------------
 
-// Register advisor or manager
+// Register a new advisor or manager
 router.post('/register', async (req, res) => {
   const { name, email, password, role } = req.body;
 
   try {
-    const existing = await Advisor.findOne({ email });
-    if (existing) {
+    const existingUser = await Advisor.findOne({ email });
+    if (existingUser) {
       return res.status(400).json({ message: 'User with this email already exists' });
     }
 
@@ -78,6 +79,7 @@ router.post('/register', async (req, res) => {
 
     await newAdvisor.save();
 
+    // Auto-generate QR code for advisors
     if (newAdvisor.role === 'advisor') {
       newAdvisor.qrCode = await generateQRCode(newAdvisor._id);
       await newAdvisor.save();
@@ -89,21 +91,20 @@ router.post('/register', async (req, res) => {
       role: newAdvisor.role,
     });
   } catch (error) {
-    console.error('Registration Error:', error);
+    console.error('❌ Registration Error:', error);
     res.status(500).json({ message: 'Server error during registration', error });
   }
 });
 
-// Login
+// Login and return token
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
   try {
     const advisor = await Advisor.findOne({ email });
-    if (!advisor) return res.status(400).json({ message: 'Invalid credentials' });
-
-    const isMatch = await bcrypt.compare(password, advisor.password);
-    if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
+    if (!advisor || !(await bcrypt.compare(password, advisor.password))) {
+      return res.status(400).json({ message: 'Invalid credentials' });
+    }
 
     if (advisor.role === 'advisor') {
       advisor.qrCode = await generateQRCode(advisor._id);
@@ -122,16 +123,20 @@ router.post('/login', async (req, res) => {
       role: advisor.role,
     });
   } catch (error) {
-    console.error('Login Error:', error);
+    console.error('❌ Login Error:', error);
     res.status(500).json({ message: 'Server error during login', error });
   }
 });
 
-// Get advisor info
-router.get('/details/:advisorId', authMiddleware, advisorMiddleware, async (req, res) => {
-  try {
-    const { advisorId } = req.params;
+// -----------------
+// Advisor Endpoints
+// -----------------
 
+// Get basic advisor profile
+router.get('/details/:advisorId', authMiddleware, advisorMiddleware, async (req, res) => {
+  const { advisorId } = req.params;
+
+  try {
     if (!mongoose.Types.ObjectId.isValid(advisorId)) {
       return res.status(400).json({ message: 'Invalid Advisor ID format' });
     }
@@ -141,12 +146,12 @@ router.get('/details/:advisorId', authMiddleware, advisorMiddleware, async (req,
 
     res.status(200).json(advisor);
   } catch (error) {
-    console.error('Fetch Advisor Info Error:', error);
-    res.status(500).json({ message: 'Server error fetching advisor info' });
+    console.error('❌ Fetch Advisor Info Error:', error);
+    res.status(500).json({ message: 'Error fetching advisor info' });
   }
 });
 
-// Fetch current QR code
+// Get advisor's QR code (regenerate if needed)
 router.get('/:advisorId/qrcode', authMiddleware, advisorMiddleware, async (req, res) => {
   try {
     const { advisorId } = req.params;
@@ -159,12 +164,12 @@ router.get('/:advisorId/qrcode', authMiddleware, advisorMiddleware, async (req, 
 
     res.status(200).json({ qrCodeURL: advisor.qrCode });
   } catch (error) {
-    console.error('QR Code Fetch Error:', error);
+    console.error('❌ QR Code Fetch Error:', error);
     res.status(500).json({ message: 'Error fetching QR Code', error });
   }
 });
 
-// Regenerate QR code manually
+// Regenerate QR code on demand
 router.post('/:advisorId/regenerate-qrcode', authMiddleware, advisorMiddleware, async (req, res) => {
   try {
     const { advisorId } = req.params;
@@ -177,19 +182,23 @@ router.post('/:advisorId/regenerate-qrcode', authMiddleware, advisorMiddleware, 
 
     res.status(200).json({ qrCodeURL: advisor.qrCode });
   } catch (error) {
-    console.error('QR Code Regeneration Error:', error);
+    console.error('❌ QR Code Regeneration Error:', error);
     res.status(500).json({ message: 'Error regenerating QR Code', error });
   }
 });
 
-// Serve static QR images
+// Serve static QR codes
 router.use('/qrcodes', express.static(QR_CODE_DIR));
 
-// Get performance data for a specific advisor
-router.get('/performance/:advisorId', authMiddleware, advisorMiddleware, async (req, res) => {
-  try {
-    const { advisorId } = req.params;
+// ---------------------
+// Performance Endpoints
+// ---------------------
 
+// Fetch individual advisor's performance
+router.get('/performance/:advisorId', authMiddleware, advisorMiddleware, async (req, res) => {
+  const { advisorId } = req.params;
+
+  try {
     if (!mongoose.Types.ObjectId.isValid(advisorId)) {
       return res.status(400).json({ message: 'Invalid Advisor ID format' });
     }
@@ -199,28 +208,27 @@ router.get('/performance/:advisorId', authMiddleware, advisorMiddleware, async (
 
     res.status(200).json({ feedback: advisor.performanceData });
   } catch (error) {
-    console.error('Error fetching performance data:', error);
+    console.error('❌ Performance Fetch Error:', error);
     res.status(500).json({ message: 'Error fetching performance data', error });
   }
 });
 
-// Get performance data for all advisors (for manager dashboard)
+// Fetch all advisors' performance (for manager dashboard)
 router.get('/all-performance', authMiddleware, async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-
     const advisors = await Advisor.find({ role: 'advisor' });
 
-    const results = advisors.map(advisor => {
+    const results = advisors.map((advisor) => {
       let feedback = advisor.performanceData || [];
 
-      // Filter by date if provided
+      // Apply date filters if present
       if (startDate && endDate) {
         const start = new Date(startDate);
         const end = new Date(endDate);
         feedback = feedback.filter(entry => {
-          const date = new Date(entry.date);
-          return date >= start && date <= end;
+          const entryDate = new Date(entry.date);
+          return entryDate >= start && entryDate <= end;
         });
       }
 
@@ -231,26 +239,28 @@ router.get('/all-performance', authMiddleware, async (req, res) => {
         ratingCounts[avg] = (ratingCounts[avg] || 0) + 1;
       });
 
+      const avgScore =
+        feedback.length > 0
+          ? (
+              feedback.reduce((sum, entry) => sum + ((entry.q1 + entry.q2 + entry.q3 + entry.q4 + entry.q5) / 5), 0) /
+              feedback.length
+            ).toFixed(2)
+          : 0;
+
       return {
         id: advisor._id,
         name: advisor.name,
         totalFeedback: feedback.length,
-        averageRating:
-          feedback.length > 0
-            ? (
-                feedback.reduce((sum, entry) => sum + ((entry.q1 + entry.q2 + entry.q3 + entry.q4 + entry.q5) / 5), 0) /
-                feedback.length
-              ).toFixed(2)
-            : 0,
+        averageRating: avgScore,
         ratingsBreakdown: ratingCounts,
-        feedback, // for charts
+        feedback,
       };
     });
 
     res.status(200).json(results);
   } catch (error) {
-    console.error('All Performance Fetch Error:', error);
-    res.status(500).json({ message: 'Server error fetching all advisor performance' });
+    console.error('❌ All Performance Fetch Error:', error);
+    res.status(500).json({ message: 'Error fetching all advisor performance' });
   }
 });
 
