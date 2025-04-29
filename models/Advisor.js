@@ -1,6 +1,7 @@
+// w1947632 Nauman Shaikh //
 const mongoose = require('mongoose');
 
-// Schema for individual performance feedback entry
+// Feedback schema: Represents a single feedback submission
 const FeedbackSchema = new mongoose.Schema({
   date: {
     type: Date,
@@ -9,27 +10,17 @@ const FeedbackSchema = new mongoose.Schema({
   customerName: {
     type: String,
   },
-  q1: {
-    type: Number,
-  },
-  q2: {
-    type: Number,
-  },
-  q3: {
-    type: Number,
-  },
-  q4: {
-    type: Number,
-  },
-  q5: {
-    type: Number,
-  },
+  q1: { type: Number }, // Personal Attention
+  q2: { type: Number }, // Professionalism & Demeanor
+  q3: { type: Number }, // Product Knowledge
+  q4: { type: Number }, // Understanding Needs
+  q5: { type: Number }, // Overall Satisfaction
   comment: {
     type: String,
   },
 });
 
-// Schema for advisor or manager
+// Advisor schema: Used for both advisors and managers
 const AdvisorSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -38,7 +29,7 @@ const AdvisorSchema = new mongoose.Schema({
   email: {
     type: String,
     required: true,
-    unique: true, // Prevent duplicate emails
+    unique: true, // Ensures no duplicate emails
   },
   password: {
     type: String,
@@ -47,12 +38,12 @@ const AdvisorSchema = new mongoose.Schema({
   role: {
     type: String,
     enum: ['advisor', 'manager'],
-    default: 'advisor',
+    default: 'advisor', // Default role is advisor
   },
   qrCode: {
-    type: String, // URL or base64-encoded image
+    type: String, // Can be a URL or base64 string
   },
-  performanceData: [FeedbackSchema], // Embedded feedback entries
+  performanceData: [FeedbackSchema], // Embedded list of feedback entries
 });
 
 module.exports = mongoose.model('Advisor', AdvisorSchema);
